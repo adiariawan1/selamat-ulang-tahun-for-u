@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sebuah Misi Untukmu, Bocil kuu</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Playfair Display & Lora -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Lora:ital,wght@0,400;1,400&display.swap" rel="stylesheet">
+
+    <!-- Library untuk efek confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+
+    <style>
+        body { font-family: 'Lora', serif; }
+        .font-playfair { font-family: 'Playfair Display', serif; }
+        .gradient-bg { 
+            background: linear-gradient(135deg, #fde6e8 0%, #e3eeff 100%);
+            background-size: 200% 200%;
+            animation: background-pan 15s ease infinite;
+        }
+        .view { transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out; }
+        .view.hidden { transform: scale(0.95); }
+        
+        #puzzle-grid {
+            display: grid;
+        }
+        .puzzle-tile {
+            width: 100%;
+            height: 100%;
+            background-size: 400% 400%;
+            cursor: pointer;
+            transition: transform 0.2s ease, filter 0.2s ease;
+            opacity: 0;
+            transform: scale(0.5);
+        }
+        .puzzle-tile.selected {
+            transform: scale(0.95);
+            filter: drop-shadow(0 0 10px #f472b6);
+            z-index: 10;
+        }
+
+        #game-overlay {
+            background-color: rgba(253, 230, 232, 0.9);
+            backdrop-filter: blur(5px);
+        }
+        .gift-target {
+            position: absolute;
+            font-size: 2.5rem;
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.1s ease;
+        }
+        .gift-target:active { transform: scale(0.9); }
+        .invitation-scroll::-webkit-scrollbar { width: 8px; }
+        .invitation-scroll::-webkit-scrollbar-track { background: #fde6e8; }
+        .invitation-scroll::-webkit-scrollbar-thumb { background-color: #f472b6; border-radius: 20px; }
+
+        #bubble-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        @keyframes background-pan {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        @keyframes zoomIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes tileBounceIn {
+            0% { opacity: 0; transform: scale(0.3); }
+            50% { opacity: 1; transform: scale(1.05); }
+            70% { transform: scale(0.9); }
+            100% { transform: scale(1); }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-zoomIn { animation: zoomIn 0.8s ease-out forwards; }
+        .animate-tileBounceIn { animation: tileBounceIn 0.6s ease-out forwards; }
+        .animate-fadeInUp { animation: fadeInUp 0.8s ease-out forwards; }
+    </style>
+</head>
+<body class="gradient-bg">
+    <canvas id="bubble-background"></canvas>
+
+    <!-- Layar Hitung Mundur -->
+    <div id="countdown-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center text-center p-4 bg-rose-100">
+        <h1 class="font-playfair text-3xl md:text-5xl text-rose-500">Kejutan Spesial Untukmu...</h1>
+        <p class="mt-4 text-gray-600">Akan terbuka dalam:</p>
+        <div id="timer" class="flex gap-4 md:gap-8 mt-8 text-rose-800">
+            <div class="flex flex-col items-center">
+                <span id="days" class="text-4xl md:text-6xl font-bold">00</span>
+                <span class="text-sm">Hari</span>
+            </div>
+            <div class="flex flex-col items-center">
+                <span id="hours" class="text-4xl md:text-6xl font-bold">00</span>
+                <span class="text-sm">Jam</span>
+            </div>
+            <div class="flex flex-col items-center">
+                <span id="minutes" class="text-4xl md:text-6xl font-bold">00</span>
+                <span class="text-sm">Menit</span>
+            </div>
+            <div class="flex flex-col items-center">
+                <span id="seconds" class="text-4xl md:text-6xl font-bold">00</span>
+                <span class="text-sm">Detik</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Konten Utama (Tersembunyi Awalnya) -->
+    <main id="main-content" class="min-h-screen flex items-center justify-center p-4 hidden" style="perspective: 1200px;">
+        <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl w-full max-w-sm sm:max-w-md p-6 sm:p-8 md:p-10 text-center animate-zoomIn">
+            
+            <!-- TAHAP 1: BUKA KARTU UCAPAN -->
+            <div id="view-cover" class="view">
+                <div id="card-container" class="relative w-full max-w-sm h-80 cursor-pointer mx-auto">
+                    <!-- Konten Kartu yang Tersembunyi -->
+                    <div id="card-content" class="absolute inset-0 bg-white rounded-lg shadow-xl p-6 flex flex-col items-center justify-center opacity-0 transition-opacity duration-500 delay-500">
+                        <img src="asset/album4.jpg" alt="Foto Pasangan" class="w-32 h-32 sm:w-32 sm:h-32 rounded-full mx-auto border-4 border-white shadow-lg object-cover">
+                        <h1 class="font-playfair text-2xl sm:text-3xl text-gray-800 mt-4">Selamat Ulang Tahun,</h1>
+                        <h2 class="font-playfair text-3xl sm:text-4xl text-rose-500 mt-1">Intan as Bocil ku</h2>
+                        <p class="font-playfair text-sm sm:text-base text-gray-600 mt-2">ada beberapa misi untuk menguji seberapa kenal kamu terhadapa diri kamu sendiri 😏</p>
+                        <button id="start-quest-button" class="mt-4 sm:mt-6 bg-rose-500 hover:bg-rose-600 text-white font-bold py-2 px-6 rounded-full shadow-lg transform transition-transform duration-300 hover:scale-110 active:scale-95">
+                            Mulai Misi 
+                        </button>
+                    </div>
+                    <!-- Penutup Kartu Kiri -->
+                    <div id="card-flap-left" class="absolute left-0 top-0 w-1/2 h-full" style="transform-style: preserve-3d; transition: transform 1s ease-in-out; transform-origin: left;">
+                        <div class="absolute inset-0 bg-rose-300 rounded-l-lg shadow-lg" style="backface-visibility: hidden;"></div>
+                        <div class="absolute inset-0 bg-rose-200 rounded-l-lg" style="transform: rotateY(180deg); backface-visibility: hidden;"></div>
+                    </div>
+                    <!-- Penutup Kartu Kanan -->
+                    <div id="card-flap-right" class="absolute right-0 top-0 w-1/2 h-full" style="transform-style: preserve-3d; transition: transform 1s ease-in-out; transform-origin: right;">
+                        <div class="absolute inset-0 bg-rose-300 rounded-r-lg shadow-lg flex items-center justify-center" style="backface-visibility: hidden;">
+                            <p class="font-playfair text-xl text-white -rotate-90 tracking-widest">openn</p>
+                        </div>
+                        <div class="absolute inset-0 bg-rose-200 rounded-r-lg" style="transform: rotateY(180deg); backface-visibility: hidden;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAHAP 2: KUIS KENANGAN -->
+            <div id="view-quiz" class="view hidden opacity-0">
+                <h2 class="font-playfair text-2xl sm:text-3xl text-rose-500">Kepingan Pertama</h2>
+                <p class="mt-4 text-sm sm:text-base text-gray-600">Jawab pertanyaan ini untuk menguji seberapa tau kamu tentang dirimu sendiri.</p>
+                <p id="quiz-question" class="mt-6 font-bold text-base sm:text-lg text-gray-800"></p>
+                <div id="quiz-options" class="grid grid-cols-1 gap-3 mt-4"></div>
+                <p id="quiz-feedback" class="mt-4 text-sm"></p>
+            </div>
+
+            <!-- TAHAP 3: PUZZLE KENANGAN -->
+            <div id="view-puzzle" class="view hidden opacity-0">
+                <h2 class="font-playfair text-2xl sm:text-3xl text-rose-500">Kepingan Kedua</h2>
+                <p id="puzzle-instruction" class="mt-4 text-sm sm:text-base text-gray-600">Susun kembali kepingan puzzle ini untuk melihat kenangan kita.</p>
+                <div id="puzzle-container" class="w-full max-w-xs mx-auto aspect-square mt-4 relative">
+                    <div id="puzzle-grid" class="absolute inset-0"></div>
+                </div>
+                <p id="puzzle-feedback" class="mt-4 text-sm font-bold"></p>
+                <button id="submit-puzzle-button" class="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-colors active:scale-95">
+                    Periksa Susunan
+                </button>
+                <button id="next-from-puzzle" class="mt-4 bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 px-8 rounded-full shadow-lg hidden transition-colors active:scale-95">
+                    Lanjutkan
+                </button>
+            </div>
+
+            <!-- TAHAP 4: GAME MEMBIDIK HADIAH -->
+            <div id="view-game" class="view hidden opacity-0">
+                 <h2 class="font-playfair text-2xl sm:text-3xl text-rose-500">Kepingan Terakhir</h2>
+                 <p class="mt-4 text-sm sm:text-base text-gray-600">Saatnya berpesta! Klik semua kado yang berloncatan untuk mendapatkan kepingan terakhir.</p>
+                 <button id="start-shooting-game" class="mt-8 bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transform transition-transform duration-300 hover:scale-110 active:scale-95">
+                    Mulai Pesta Kado!
+                 </button>
+            </div>
+
+            <!-- TAHAP 5: UNDANGAN SPESIAL (SCROLLABLE) -->
+            <div id="view-invitation" class="view hidden opacity-0 text-left">
+                <div class="opacity-0 animate-fadeInUp" style="animation-delay: 0.2s;">
+                    <svg class="w-16 h-16 text-amber-400 mx-auto" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-1 1v1.618A5 5 0 004.5 9.5V13a1 1 0 001 1h9a1 1 0 001-1V9.5A5 5 0 0012 4.618V3a1 1 0 00-1-1H9zM8 4h4v1.083A6.002 6.002 0 006.5 9.5V12h7V9.5A6.002 6.002 0 0012 5.083V4H8zM5 14a1 1 0 000 2h10a1 1 0 000-2H5z" clip-rule="evenodd"></path></svg>
+                    <h2 class="font-playfair text-3xl text-rose-500 text-center mt-2">Misi Telah Selesai!</h2>
+                    <p class="mt-2 text-gray-600 text-center">Sebuah penghargaan untuk orang paling hebat yang kukenal.</p>
+                </div>
+                
+                <div class="mt-6 max-h-[50vh] overflow-y-auto p-4 border-t border-b border-rose-200 invitation-scroll opacity-0 animate-fadeInUp" style="animation-delay: 0.6s;">
+                    <h3 class="font-playfair text-2xl text-rose-800">Doa & Harapanku Untukmu</h3>
+                    <p class="mt-2 text-gray-700 italic leading-relaxed">
+                        "Selamat ulang tahun, Bocil kuu yang cantik dan imut. Di hari yang istimewa ini, aku berdoa agar setiap langkahmu ke depan selalu dipenuhi cahaya, tawa, dan kebahagiaan yang tak terhingga. Semoga kamu selalu sehat, dikelilingi orang-orang yang tulus, dan semua impianmu satu per satu menjadi nyata. Kamu pantas menjadi yang paling istimewa di dunia ini."
+                    </p>
+                    <hr class="my-8 border-rose-200 border-dashed">
+                    <h3 class="font-playfair text-2xl text-rose-800">Beberapa foto bidadari 😎</h3>
+                    <div class="grid grid-cols-2 gap-4 mt-4">
+                        <img src="asset/part2.jpg" class="rounded-lg shadow-md aspect-square object-cover">
+                        <img src="asset/profil.jpg" class="rounded-lg shadow-md aspect-square object-cover">
+                        <img src="asset/album 3.jpg" class="rounded-lg shadow-md aspect-square object-cover">
+                        <img src="asset/album4.jpg" class="rounded-lg shadow-md aspect-square object-cover">
+                    </div>
+                    <hr class="my-8 border-rose-200 border-dashed">
+                    <p class="text-center text-gray-700 font-bold">
+                        Terima kasih sudah menjadi sosok yang membuah hari hari ku menjadi cerah hehe.
+                    </p>
+                    <div class="text-center mt-12 opacity-0 animate-fadeInUp" style="animation-delay: 1s;">
+                        <p class="text-sm text-gray-500">Hadiah utamamu sudah siap...</p>
+                        <a id="whatsapp-button" href="#" class="mt-2 inline-block bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transform transition-transform duration-300 hover:scale-110 active:scale-95">
+                            Klaim Hadiahmu di Sini
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Overlay untuk Game Fullscreen -->
+    <div id="game-overlay" class="fixed inset-0 z-50 hidden items-center justify-center p-4 cursor-crosshair">
+        <div id="game-canvas" class="relative w-full h-full"></div>
+        <div class="absolute top-4 right-4 bg-white/80 text-rose-500 font-bold text-base sm:text-lg px-4 py-2 rounded-lg shadow-lg">
+            Sisa Kado: <span id="gifts-left">10</span>
+        </div>
+        <div class="absolute top-4 left-4 bg-white/80 text-blue-500 font-bold text-base sm:text-lg px-4 py-2 rounded-lg shadow-lg">
+            Waktu: <span id="game-timer">30</span>s
+        </div>
+    </div>
+
+    <!-- Musik Latar -->
+    <audio id="background-music" loop>
+        <source src="/asset/music.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        // --- PENGATURAN ---
+        const yourPhoneNumber = '6285842784249';
+        
+        // --- ELEMEN HTML ---
+        const mainContent = document.getElementById('main-content');
+        const countdownOverlay = document.getElementById('countdown-overlay');
+        const views = {
+            cover: document.getElementById('view-cover'),
+            quiz: document.getElementById('view-quiz'),
+            puzzle: document.getElementById('view-puzzle'),
+            game: document.getElementById('view-game'),
+            invitation: document.getElementById('view-invitation')
+        };
+        const startQuestButton = document.getElementById('start-quest-button');
+        const quizQuestionEl = document.getElementById('quiz-question');
+        const quizOptionsEl = document.getElementById('quiz-options');
+        const quizFeedback = document.getElementById('quiz-feedback');
+        const submitPuzzleButton = document.getElementById('submit-puzzle-button');
+        const nextFromPuzzleBtn = document.getElementById('next-from-puzzle');
+        const startShootingGameBtn = document.getElementById('start-shooting-game');
+        const whatsappButton = document.getElementById('whatsapp-button');
+        const backgroundMusic = document.getElementById('background-music');
+        
+        const daysEl = document.getElementById('days');
+        const hoursEl = document.getElementById('hours');
+        const minutesEl = document.getElementById('minutes');
+        const secondsEl = document.getElementById('seconds');
+
+        // --- FUNGSI NAVIGASI ---
+        function switchView(currentView, nextView) {
+            views[currentView].classList.add('opacity-0', 'hidden');
+            views[nextView].classList.remove('hidden');
+            setTimeout(() => {
+                views[nextView].classList.remove('opacity-0');
+                if (nextView === 'quiz') {
+                    setupQuiz();
+                }
+                if (nextView === 'puzzle') {
+                    createPuzzle();
+                }
+                if (nextView === 'invitation') {
+                    triggerFinalCelebration();
+                }
+            }, 500);
+        }
+
+        // --- LOGIKA HITUNG MUNDUR ---
+        const birthday = new Date(`August 18, ${new Date().getFullYear()} 00:00:00`).getTime();
+        
+        const countdownInterval = setInterval(() => {
+            const now = new Date().getTime();
+            const distance = birthday - now;
+
+            if (distance < 0) {
+                clearInterval(countdownInterval);
+                countdownOverlay.style.display = 'none';
+                mainContent.classList.remove('hidden');
+            } else {
+                const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+                if (daysEl && hoursEl && minutesEl && secondsEl) {
+                    daysEl.innerText = String(days).padStart(2, '0');
+                    hoursEl.innerText = String(hours).padStart(2, '0');
+                    minutesEl.innerText = String(minutes).padStart(2, '0');
+                    secondsEl.innerText = String(seconds).padStart(2, '0');
+                }
+            }
+        }, 1000);
+
+        // --- LOGIKA MISI ---
+        
+        // Misi 0: Buka Kartu & Mainkan Musik
+        const cardContainer = document.getElementById('card-container');
+        const cardContent = document.getElementById('card-content');
+        const flapLeft = document.getElementById('card-flap-left');
+        const flapRight = document.getElementById('card-flap-right');
+
+        cardContainer.addEventListener('click', () => {
+            if (cardContainer.classList.contains('open')) return;
+            cardContainer.classList.add('open');
+            flapLeft.style.transform = 'rotateY(-180deg)';
+            flapRight.style.transform = 'rotateY(180deg)';
+            cardContent.style.opacity = 1;
+            backgroundMusic.play().catch(e => console.log("Autoplay was prevented."));
+        }, { once: true });
+
+        startQuestButton.addEventListener('click', () => switchView('cover', 'quiz'));
+
+        // Misi 1: Kuis Acak
+        const quizQuestions = [
+            { question: "Apa makanan manis favorit sayaa", options: ["Batu Bata", "Kue", "Donat"], correct: "Donat" },
+            { question: "Dimana yaa tempat favorit saya?", options: ["Gunung", "Kebun", "Pantai"], correct: "Pantai" },
+            { question: "Apa hal yang paling kamuu sukaa", options: ["Antoo", "Jeonghan", "Mingyu + Akyuu"], correct: "Mingyu + Akyuu" },
+            { question: "Jika dia adalah superhero, kekuatan supernya apa?", options: ["Menghilang", "Membaca pikiran", "Membuat semua orang bahagia"], correct: "Membuat semua orang bahagia" }
+        ];
+
+        function setupQuiz() {
+            const randomQuestion = quizQuestions[Math.floor(Math.random() * quizQuestions.length)];
+            quizQuestionEl.textContent = randomQuestion.question;
+            quizOptionsEl.innerHTML = '';
+            randomQuestion.options.forEach(option => {
+                const button = document.createElement('button');
+                button.textContent = option;
+                button.className = 'quiz-option bg-white p-3 rounded-lg shadow hover:bg-rose-100 transition-colors active:scale-95';
+                if (option === randomQuestion.correct) button.classList.add('correct');
+                quizOptionsEl.appendChild(button);
+            });
+        }
+
+        quizOptionsEl.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON') {
+                document.querySelectorAll('.quiz-option').forEach(btn => btn.disabled = true);
+                if (e.target.classList.contains('correct')) {
+                    quizFeedback.textContent = 'Benar! Kamu memang paling tau tentang diri kamuu. ❤️';
+                    quizFeedback.style.color = 'green';
+                    setTimeout(() => switchView('quiz', 'puzzle'), 2000);
+                } else {
+                    quizFeedback.textContent = 'hahaha coba lagi. 😉';
+                    quizFeedback.style.color = 'red';
+                    setTimeout(() => {
+                        document.querySelectorAll('.quiz-option').forEach(btn => btn.disabled = false);
+                        quizFeedback.textContent = '';
+                    }, 2000);
+                }
+            }
+        });
+
+        // Misi 2: Puzzle Jigsaw Dinamis
+        const puzzleGrid = document.getElementById('puzzle-grid');
+        const puzzleFeedback = document.getElementById('puzzle-feedback');
+        const puzzleContainer = document.getElementById('puzzle-container');
+        const puzzleInstruction = document.getElementById('puzzle-instruction');
+        let PUZZLE_SIZE = 4;
+        let selectedTile = null;
+        
+        const puzzleImages = [
+            'asset/part1.jpeg',
+            'asset/part2.jpg',
+            'asset/part3.jpg',
+            'asset/part4.jpeg'
+        ];
+        const puzzleImageUrl = puzzleImages[Math.floor(Math.random() * puzzleImages.length)];
+
+        function createPuzzle() {
+            const containerWidth = puzzleContainer.clientWidth;
+            if (containerWidth <= 0) {
+                setTimeout(createPuzzle, 50);
+                return;
+            }
+            if (containerWidth < 200) PUZZLE_SIZE = 3;
+            else if (containerWidth < 300) PUZZLE_SIZE = 4;
+            else PUZZLE_SIZE = 5;
+            
+            puzzleInstruction.textContent = `Susun kembali ${PUZZLE_SIZE * PUZZLE_SIZE} kepingan puzzle ini untuk menguji seberapa kenal kamu terhadap diri kamu sendiri.`;
+            puzzleGrid.innerHTML = '';
+            puzzleGrid.style.gridTemplateColumns = `repeat(${PUZZLE_SIZE}, 1fr)`;
+            puzzleGrid.style.gridTemplateRows = `repeat(${PUZZLE_SIZE}, 1fr)`;
+
+            const tiles = [];
+            for (let i = 0; i < PUZZLE_SIZE * PUZZLE_SIZE; i++) {
+                const tile = document.createElement('div');
+                tile.classList.add('puzzle-tile');
+                tile.style.backgroundImage = `url(${puzzleImageUrl})`;
+                tile.style.backgroundSize = `${PUZZLE_SIZE * 100}% ${PUZZLE_SIZE * 100}%`;
+                const r = Math.floor(i / PUZZLE_SIZE);
+                const c = i % PUZZLE_SIZE;
+                tile.dataset.correctPos = `${(c * 100) / (PUZZLE_SIZE - 1)}% ${(r * 100) / (PUZZLE_SIZE - 1)}%`;
+                tile.style.backgroundPosition = tile.dataset.correctPos;
+                tiles.push(tile);
+            }
+            for (let i = tiles.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [tiles[i].style.backgroundPosition, tiles[j].style.backgroundPosition] = 
+                [tiles[j].style.backgroundPosition, tiles[i].style.backgroundPosition];
+            }
+            tiles.forEach(tile => puzzleGrid.appendChild(tile));
+            animatePuzzleTiles();
+        }
+
+        function animatePuzzleTiles() {
+            const tiles = document.querySelectorAll('.puzzle-tile');
+            tiles.forEach((tile, index) => {
+                setTimeout(() => {
+                    tile.classList.add('animate-tileBounceIn');
+                    tile.style.opacity = 1;
+                }, index * 50);
+            });
+        }
+
+        puzzleGrid.addEventListener('click', (e) => {
+            const clickedTile = e.target.closest('.puzzle-tile');
+            if (!clickedTile) return;
+            if (!selectedTile) {
+                selectedTile = clickedTile;
+                selectedTile.classList.add('selected');
+            } else {
+                [selectedTile.style.backgroundPosition, clickedTile.style.backgroundPosition] = 
+                [clickedTile.style.backgroundPosition, selectedTile.style.backgroundPosition];
+                selectedTile.classList.remove('selected');
+                selectedTile = null;
+            }
+        });
+
+        function isPuzzleSolved() {
+            const tiles = Array.from(puzzleGrid.children);
+            if (tiles.length === 0) return false;
+            const tolerance = 0.1;
+            return tiles.every(tile => {
+                const correctPosString = tile.dataset.correctPos;
+                const correctParts = correctPosString.split(' ');
+                const correctX = parseFloat(correctParts[0]);
+                const correctY = parseFloat(correctParts[1]);
+                const currentPosString = tile.style.backgroundPosition;
+                const currentParts = currentPosString.split(' ');
+                const currentX = parseFloat(currentParts[0]);
+                const currentY = parseFloat(currentParts[1]);
+                return Math.abs(currentX - correctX) < tolerance && Math.abs(currentY - correctY) < tolerance;
+            });
+        }
+
+        submitPuzzleButton.addEventListener('click', () => {
+            if (isPuzzleSolved()) {
+                puzzleFeedback.textContent = 'Berhasil! Kamu sudah mengenali dengan jelas tentang diri kamuu. ✨';
+                puzzleFeedback.style.color = 'green';
+                nextFromPuzzleBtn.classList.remove('hidden');
+                submitPuzzleButton.classList.add('hidden');
+                puzzleGrid.style.pointerEvents = 'none';
+            } else {
+                puzzleFeedback.textContent = 'Hmm, sepertinya ada yang lupa ingatan. Coba lagi!';
+                puzzleFeedback.style.color = 'red';
+                setTimeout(() => { puzzleFeedback.textContent = ''; }, 2000);
+            }
+        });
+        nextFromPuzzleBtn.addEventListener('click', () => switchView('puzzle', 'game'));
+
+        // Misi 3: Game Pesta Kado
+        const gameOverlay = document.getElementById('game-overlay');
+        const gameCanvas = document.getElementById('game-canvas');
+        const giftsLeftDisplay = document.getElementById('gifts-left');
+        const gameTimerDisplay = document.getElementById('game-timer');
+        const NUM_GIFTS = 10;
+        let gifts = [];
+        let animationFrameId;
+        let gameTimerInterval;
+        let timeLeft;
+
+        startShootingGameBtn.addEventListener('click', () => {
+            gameOverlay.classList.remove('hidden');
+            gameOverlay.classList.add('flex');
+            startGame();
+        });
+
+        function startGame() {
+            gameCanvas.innerHTML = '';
+            gifts = [];
+            giftsLeftDisplay.textContent = NUM_GIFTS;
+            timeLeft = 30;
+            gameTimerDisplay.textContent = timeLeft;
+
+            if (gameTimerInterval) clearInterval(gameTimerInterval);
+            gameTimerInterval = setInterval(() => {
+                timeLeft--;
+                gameTimerDisplay.textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(gameTimerInterval);
+                    failGame();
+                }
+            }, 1000);
+
+            for (let i = 0; i < NUM_GIFTS; i++) {
+                const giftEl = document.createElement('div');
+                giftEl.classList.add('gift-target');
+                giftEl.textContent = '🎁';
+                gameCanvas.appendChild(giftEl);
+                const gift = {
+                    el: giftEl,
+                    x: Math.random() * (gameCanvas.clientWidth - 40),
+                    y: Math.random() * (gameCanvas.clientHeight - 40),
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                };
+                gifts.push(gift);
+                giftEl.addEventListener('click', () => {
+                    giftEl.style.display = 'none';
+                    const index = gifts.indexOf(gift);
+                    if (index > -1) gifts.splice(index, 1);
+                    giftsLeftDisplay.textContent = gifts.length;
+                    if (gifts.length === 0) winGame();
+                });
+            }
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            gameLoop();
+        }
+
+        function gameLoop() {
+            gifts.forEach(gift => {
+                gift.x += gift.vx;
+                gift.y += gift.vy;
+                gift.vy += 0.05;
+                if (gift.x <= 0 || gift.x >= gameCanvas.clientWidth - 40) gift.vx *= -1;
+                if (gift.y <= 0 || gift.y >= gameCanvas.clientHeight - 40) gift.vy *= -0.8;
+                gift.el.style.left = `${gift.x}px`;
+                gift.el.style.top = `${gift.y}px`;
+            });
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function winGame() {
+            clearInterval(gameTimerInterval);
+            cancelAnimationFrame(animationFrameId);
+            gameCanvas.innerHTML = `<div class="w-full h-full flex items-center justify-center"><p class="text-2xl font-bold text-rose-500 bg-white/80 p-4 rounded-lg">Pesta Selesai! Kamu Hebat!</p></div>`;
+            setTimeout(() => {
+                gameOverlay.classList.add('hidden');
+                gameOverlay.classList.remove('flex');
+                switchView('game', 'invitation');
+            }, 2000);
+        }
+        
+        function failGame() {
+            cancelAnimationFrame(animationFrameId);
+            gameCanvas.innerHTML = `<div class="w-full h-full flex items-center justify-center"><p class="text-2xl font-bold text-red-500 bg-white/80 p-4 rounded-lg">Waktu Habis! Coba Lagi!</p></div>`;
+            setTimeout(() => {
+                gameOverlay.classList.add('hidden');
+                gameOverlay.classList.remove('flex');
+                resetAllMissions();
+                switchView('game', 'cover');
+            }, 2000);
+        }
+
+        function resetAllMissions() {
+            // Reset Card to its open state, ready for a new mission start
+            cardContainer.classList.add('open');
+            flapLeft.style.transform = 'rotateY(-180deg)';
+            flapRight.style.transform = 'rotateY(180deg)';
+            cardContent.style.opacity = 1;
+
+            // Reset Quiz
+            quizFeedback.textContent = '';
+            
+            // Reset Puzzle
+            puzzleFeedback.textContent = '';
+            submitPuzzleButton.classList.remove('hidden');
+            nextFromPuzzleBtn.classList.add('hidden');
+            if (puzzleGrid) {
+                puzzleGrid.style.pointerEvents = 'auto';
+            }
+        }
+
+        // --- FUNGSI PERAYAAN FINAL ---
+        function triggerFinalCelebration() {
+            const duration = 3 * 1000;
+            const animationEnd = Date.now() + duration;
+            const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100 };
+            const colors = ['#fecdd3', '#fbcfe8', '#fbbf24', '#ffffff'];
+            function randomInRange(min, max) { return Math.random() * (max - min) + min; }
+            const interval = setInterval(function() {
+                const timeLeft = animationEnd - Date.now();
+                if (timeLeft <= 0) return clearInterval(interval);
+                const particleCount = 50 * (timeLeft / duration);
+                confetti({ ...defaults, particleCount, colors: colors, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
+                confetti({ ...defaults, particleCount, colors: colors, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
+            }, 250);
+        }
+
+        // --- LOGIKA GELEMBUNG LATAR BELAKANG ---
+        const bubbleCanvas = document.getElementById('bubble-background');
+        const ctx = bubbleCanvas.getContext('2d');
+        let bubbles = [];
+
+        function resizeCanvas() {
+            bubbleCanvas.width = window.innerWidth;
+            bubbleCanvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        function createBubbleWave() {
+            for (let i = 0; i < 10; i++) {
+                bubbles.push({
+                    x: Math.random() * bubbleCanvas.width,
+                    y: bubbleCanvas.height + Math.random() * 100,
+                    radius: Math.random() * 15 + 5,
+                    speedY: Math.random() * 2 + 1,
+                    opacity: Math.random() * 0.5 + 0.2
+                });
+            }
+        }
+
+        function animateBubbles() {
+            ctx.clearRect(0, 0, bubbleCanvas.width, bubbleCanvas.height);
+            bubbles.forEach((bubble, index) => {
+                bubble.y -= bubble.speedY;
+                ctx.beginPath();
+                ctx.arc(bubble.x, bubble.y, bubble.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${bubble.opacity})`;
+                ctx.fill();
+
+                if (bubble.y < -bubble.radius) {
+                    bubbles.splice(index, 1);
+                }
+            });
+            requestAnimationFrame(animateBubbles);
+        }
+        
+        bubbleCanvas.addEventListener('click', (e) => {
+            const rect = bubbleCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            for (let i = bubbles.length - 1; i >= 0; i--) {
+                const bubble = bubbles[i];
+                const distance = Math.sqrt((x - bubble.x)**2 + (y - bubble.y)**2);
+                if (distance < bubble.radius) {
+                    bubbles.splice(i, 1); // Pop the bubble
+                    break;
+                }
+            }
+        });
+
+        setInterval(createBubbleWave, 10000);
+        animateBubbles();
+
+
+        // --- LOGIKA WHATSAPP ---
+        const message = "Hai adik nya mingyuu, aku sudah selesaikan misinya dan mau klaim hadiahku! 😊\n\nIni alamat lengkapku ya:\n[Ketik alamat lengkap di sini]";
+        whatsappButton.href = `https://wa.me/${yourPhoneNumber}?text=${encodeURIComponent(message)}`;
+        
+    </script>
+</body>
+</html>
